@@ -1,8 +1,9 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { requireAuth, AuthenticatedRequest } from '../lib/auth';
 import { writeAuditLog } from '../lib/audit';
+import { getParamString } from '../lib/params';
 
 export const messagesRouter = Router();
 
@@ -11,10 +12,12 @@ const messageSchema = z.object({
   text: z.string().min(1)
 });
 
-messagesRouter.get('/:bookingId', requireAuth, async (req: AuthenticatedRequest, res) => {
+messagesRouter.get('/:bookingId', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const bookingId = getParamString(req.params.bookingId);
+
   const booking = await prisma.booking.findFirst({
     where: {
-      id: req.params.bookingId,
+      id: bookingId,
       ownerId: req.userId!
     }
   });
@@ -34,7 +37,7 @@ messagesRouter.get('/:bookingId', requireAuth, async (req: AuthenticatedRequest,
   res.json({ success: true, data: messages });
 });
 
-messagesRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res) => {
+messagesRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const parsed = messageSchema.safeParse(req.body);
 
   if (!parsed.success) {

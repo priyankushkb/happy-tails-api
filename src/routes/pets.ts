@@ -1,8 +1,9 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { requireAuth, AuthenticatedRequest } from '../lib/auth';
 import { writeAuditLog } from '../lib/audit';
+import { getParamString } from '../lib/params';
 
 export const petsRouter = Router();
 
@@ -13,7 +14,7 @@ const petSchema = z.object({
   photoUrl: z.string().optional().nullable(),
 });
 
-petsRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
+petsRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const pets = await prisma.pet.findMany({
     where: { ownerId: req.userId! },
     orderBy: { createdAt: 'desc' }
@@ -22,7 +23,7 @@ petsRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
   res.json({ success: true, data: pets });
 });
 
-petsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res) => {
+petsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const parsed = petSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -50,10 +51,12 @@ petsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res) => {
   res.json({ success: true, data: pet });
 });
 
-petsRouter.delete('/:petId', requireAuth, async (req: AuthenticatedRequest, res) => {
+petsRouter.delete('/:petId', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const petId = getParamString(req.params.petId);
+
   const pet = await prisma.pet.findFirst({
     where: {
-      id: req.params.petId,
+      id: petId,
       ownerId: req.userId!
     }
   });

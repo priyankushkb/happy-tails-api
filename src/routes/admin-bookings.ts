@@ -1,8 +1,9 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { requireAdmin, AuthenticatedRequest } from '../lib/auth';
 import { writeAuditLog } from '../lib/audit';
+import { getParamString } from '../lib/params';
 
 export const adminBookingsRouter = Router();
 
@@ -10,7 +11,7 @@ const statusSchema = z.object({
   status: z.enum(['CONFIRMED', 'DECLINED', 'COMPLETED', 'CANCELLED'])
 });
 
-adminBookingsRouter.get('/', requireAdmin, async (_req: AuthenticatedRequest, res) => {
+adminBookingsRouter.get('/', requireAdmin, async (_req: AuthenticatedRequest, res: Response) => {
   const bookings = await prisma.booking.findMany({
     include: {
       pet: true,
@@ -29,9 +30,11 @@ adminBookingsRouter.get('/', requireAdmin, async (_req: AuthenticatedRequest, re
   res.json({ success: true, data: bookings });
 });
 
-adminBookingsRouter.get('/:bookingId', requireAdmin, async (req: AuthenticatedRequest, res) => {
+adminBookingsRouter.get('/:bookingId', requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  const bookingId = getParamString(req.params.bookingId);
+
   const booking = await prisma.booking.findUnique({
-    where: { id: req.params.bookingId },
+    where: { id: bookingId },
     include: {
       pet: true,
       owner: {
@@ -56,7 +59,8 @@ adminBookingsRouter.get('/:bookingId', requireAdmin, async (req: AuthenticatedRe
   res.json({ success: true, data: booking });
 });
 
-adminBookingsRouter.patch('/:bookingId/status', requireAdmin, async (req: AuthenticatedRequest, res) => {
+adminBookingsRouter.patch('/:bookingId/status', requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  const bookingId = getParamString(req.params.bookingId);
   const parsed = statusSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -67,7 +71,7 @@ adminBookingsRouter.patch('/:bookingId/status', requireAdmin, async (req: Authen
   }
 
   const booking = await prisma.booking.findUnique({
-    where: { id: req.params.bookingId }
+    where: { id: bookingId }
   });
 
   if (!booking) {

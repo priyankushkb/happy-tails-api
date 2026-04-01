@@ -1,8 +1,9 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { requireAuth, AuthenticatedRequest } from '../lib/auth';
 import { writeAuditLog } from '../lib/audit';
+import { getParamString } from '../lib/params';
 
 export const bookingsRouter = Router();
 
@@ -13,7 +14,7 @@ const bookingSchema = z.object({
   notes: z.string().default('')
 });
 
-bookingsRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
+bookingsRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const bookings = await prisma.booking.findMany({
     where: { ownerId: req.userId! },
     include: { pet: true },
@@ -23,7 +24,7 @@ bookingsRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
   res.json({ success: true, data: bookings });
 });
 
-bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res) => {
+bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const parsed = bookingSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -69,10 +70,12 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res) => 
   res.json({ success: true, data: booking });
 });
 
-bookingsRouter.get('/:bookingId', requireAuth, async (req: AuthenticatedRequest, res) => {
+bookingsRouter.get('/:bookingId', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const bookingId = getParamString(req.params.bookingId);
+
   const booking = await prisma.booking.findFirst({
     where: {
-      id: req.params.bookingId,
+      id: bookingId,
       ownerId: req.userId!
     },
     include: {
@@ -91,10 +94,12 @@ bookingsRouter.get('/:bookingId', requireAuth, async (req: AuthenticatedRequest,
   res.json({ success: true, data: booking });
 });
 
-bookingsRouter.delete('/:bookingId', requireAuth, async (req: AuthenticatedRequest, res) => {
+bookingsRouter.delete('/:bookingId', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const bookingId = getParamString(req.params.bookingId);
+
   const booking = await prisma.booking.findFirst({
     where: {
-      id: req.params.bookingId,
+      id: bookingId,
       ownerId: req.userId!
     }
   });

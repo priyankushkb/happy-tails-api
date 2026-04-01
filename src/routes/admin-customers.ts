@@ -1,10 +1,11 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { requireAdmin, AuthenticatedRequest } from '../lib/auth';
+import { getParamString } from '../lib/params';
 
 export const adminCustomersRouter = Router();
 
-adminCustomersRouter.get('/', requireAdmin, async (_req: AuthenticatedRequest, res) => {
+adminCustomersRouter.get('/', requireAdmin, async (_req: AuthenticatedRequest, res: Response) => {
   const customers = await prisma.user.findMany({
     where: {
       role: 'CUSTOMER',
@@ -26,10 +27,12 @@ adminCustomersRouter.get('/', requireAdmin, async (_req: AuthenticatedRequest, r
   res.json({ success: true, data: customers });
 });
 
-adminCustomersRouter.get('/:customerId', requireAdmin, async (req: AuthenticatedRequest, res) => {
+adminCustomersRouter.get('/:customerId', requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  const customerId = getParamString(req.params.customerId);
+
   const customer = await prisma.user.findUnique({
     where: {
-      id: req.params.customerId,
+      id: customerId,
     },
     include: {
       pets: {
