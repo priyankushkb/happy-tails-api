@@ -1,0 +1,122 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { prisma } from '../lib/prisma';
+import { requireAuth, AuthenticatedRequest } from '../lib/auth';
+import { writeAuditLog } from '../lib/audit';
+
+export const bookingsRouter = Router();
+
+const bookingSchema = z.object({
+  petId: z.string().min(1),
+  startDate: z.string().min(1),
+  endDate: z.string().min(1),
+  notes: z.string().default('')
+});
+
+bookingsRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const bookings = await prisma.booking.findMany({
+    where: { ownerId: req.userId! },
+    include: { pet: true },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  res.json({ success: true, data: bookings });
+});
+
+bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const parsed = bookingSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', message: 'Invalid booking input' }
+    });
+  }
+
+  const pet = await prisma.pet.findFirst({
+    where: {
+      id: parsed.data.petId,
+      ownerId: req.userId!
+    }
+  });
+
+  if (!pet) {
+    return res.status(404).json({
+      success: false,
+      error: { code: 'PET_NOT_FOUND', message: 'Pet not found' }
+    });
+  }
+
+  const booking = await prisma.booking.create({
+    data: {
+      ownerId: req.userId!,
+      petId: pet.id,
+      startDate: parsed.data.startDate,
+      endDate: parsed.data.endDate,
+      notes: parsed.data.notes
+    },
+    include: { pet: true }
+  });
+
+  await writeAuditLog({
+    actorUserId: req.userId!,
+    action: 'BOOKING_CREATED',
+    entityType: 'Booking',
+    entityId: booking.id,
+    details: `Created booking for pet ${pet.name}`,
+  });
+
+  res.json({ success: true, data: booking });
+});
+
+bookingsRouter.get('/:bookingId', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const booking = await prisma.booking.findFirst({
+    where: {
+      id: req.params.bookingId,
+      ownerId: req.userId!
+    },
+    include: {
+      pet: true,
+      messages: { orderBy: { createdAt: 'asc' } }
+    }
+  });
+
+  if (!booking) {
+    return res.status(404).json({
+      success: false,
+      error: { code: 'NOT_FOUND', message: 'Booking not found' }
+    });
+  }
+
+  res.json({ success: true, data: booking });
+});
+
+bookingsRouter.delete('/:bookingId', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const booking = await prisma.booking.findFirst({
+    where: {
+      id: req.params.bookingId,
+      ownerId: req.userId!
+    }
+  });
+
+  if (!booking) {
+    return res.status(404).json({
+      success: false,
+      error: { code: 'NOT_FOUND', message: 'Booking not found' }
+    });
+  }
+
+  await prisma.booking.delete({
+    where: { id: booking.id }
+  });
+
+  await writeAuditLog({
+    actorUserId: req.userId!,
+    action: 'BOOKING_DELETED',
+    entityType: 'Booking',
+    entityId: booking.id,
+    details: `Deleted booking ${booking.id}`,
+  });
+
+  res.json({ success: true, data: { deleted: true } });
+});
