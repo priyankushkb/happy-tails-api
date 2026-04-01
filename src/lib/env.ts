@@ -18,9 +18,11 @@ if (!parsed.success) {
   process.exit(1);
 }
 
+const envData = parsed.data;
+
 export const ENV = {
-  ...parsed.data,
-  CORS_ORIGINS_LIST: parsed.data.CORS_ORIGINS
+  ...envData,
+  CORS_ORIGINS_LIST: envData.CORS_ORIGINS
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
