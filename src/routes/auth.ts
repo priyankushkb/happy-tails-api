@@ -10,6 +10,7 @@ import {
 } from '../lib/auth';
 import { authRateLimiter } from '../lib/rate-limit';
 import { writeAuditLog } from '../lib/audit';
+import { notifyAdminUserRegistered } from '../lib/admin-notify';
 
 export const authRouter = Router();
 
@@ -36,8 +37,9 @@ authRouter.post('/register', authRateLimiter, async (req, res) => {
   }
 
   const { fullName, email, phone, password } = parsed.data;
+  const normalizedEmail = email.trim().toLowerCase();
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
   if (existing) {
     return res.status(409).json({
@@ -51,7 +53,7 @@ authRouter.post('/register', authRateLimiter, async (req, res) => {
   const user = await prisma.user.create({
     data: {
       fullName,
-      email,
+      email: normalizedEmail,
       phone,
       passwordHash
     }
@@ -63,6 +65,12 @@ authRouter.post('/register', authRateLimiter, async (req, res) => {
     entityType: 'User',
     entityId: user.id,
     details: `User registered with email ${user.email}`,
+  });
+
+  await notifyAdminUserRegistered({
+    fullName: user.fullName,
+    email: user.email,
+    phone: user.phone,
   });
 
   const token = signToken(user.id);
@@ -93,8 +101,9 @@ authRouter.post('/login', authRateLimiter, async (req, res) => {
   }
 
   const { email, password } = parsed.data;
+  const normalizedEmail = email.trim().toLowerCase();
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
   if (!user) {
     return res.status(401).json({

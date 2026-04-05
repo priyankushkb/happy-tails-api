@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { requireAuth, AuthenticatedRequest } from '../lib/auth';
 import { writeAuditLog } from '../lib/audit';
 import { getParamString } from '../lib/params';
+import { notifyAdminPetCreated } from '../lib/admin-notify';
 
 export const petsRouter = Router();
 
@@ -33,6 +34,17 @@ petsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Respons
     });
   }
 
+  const owner = await prisma.user.findUnique({
+    where: { id: req.userId! }
+  });
+
+  if (!owner) {
+    return res.status(404).json({
+      success: false,
+      error: { code: 'NOT_FOUND', message: 'Owner not found' }
+    });
+  }
+
   const pet = await prisma.pet.create({
     data: {
       ownerId: req.userId!,
@@ -46,6 +58,14 @@ petsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Respons
     entityType: 'Pet',
     entityId: pet.id,
     details: `Created pet ${pet.name}`,
+  });
+
+  await notifyAdminPetCreated({
+    ownerName: owner.fullName,
+    ownerEmail: owner.email,
+    petName: pet.name,
+    breed: pet.breed,
+    age: pet.age,
   });
 
   res.json({ success: true, data: pet });
