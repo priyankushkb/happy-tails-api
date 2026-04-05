@@ -4,6 +4,10 @@ import { prisma } from '../lib/prisma';
 import { requireAuth, AuthenticatedRequest } from '../lib/auth';
 import { writeAuditLog } from '../lib/audit';
 import { getParamString } from '../lib/params';
+import {
+  notifyAdminBookingCreated,
+  notifyCustomerBookingCreated,
+} from '../lib/admin-notify';
 
 export const bookingsRouter = Router();
 
@@ -31,6 +35,17 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
     return res.status(400).json({
       success: false,
       error: { code: 'VALIDATION_ERROR', message: 'Invalid booking input' }
+    });
+  }
+
+  const owner = await prisma.user.findUnique({
+    where: { id: req.userId! }
+  });
+
+  if (!owner) {
+    return res.status(404).json({
+      success: false,
+      error: { code: 'OWNER_NOT_FOUND', message: 'Owner not found' }
     });
   }
 
@@ -65,6 +80,23 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
     entityType: 'Booking',
     entityId: booking.id,
     details: `Created booking for pet ${pet.name}`,
+  });
+
+  await notifyAdminBookingCreated({
+    ownerName: owner.fullName,
+    ownerEmail: owner.email,
+    petName: pet.name,
+    startDate: String(booking.startDate),
+    endDate: String(booking.endDate),
+    notes: booking.notes || '',
+  });
+
+  await notifyCustomerBookingCreated({
+    customerEmail: owner.email,
+    customerName: owner.fullName,
+    petName: pet.name,
+    startDate: String(booking.startDate),
+    endDate: String(booking.endDate),
   });
 
   res.json({ success: true, data: booking });

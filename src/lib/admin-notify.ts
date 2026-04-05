@@ -1,4 +1,10 @@
-type NotifyAdminArgs = {
+type SendEmailArgs = {
+    to: string;
+    subject: string;
+    html: string;
+  };
+  
+  type NotifyAdminArgs = {
     subject: string;
     html: string;
   };
@@ -8,17 +14,17 @@ type NotifyAdminArgs = {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
   
-  export async function notifyAdminByEmail({
+  async function sendEmail({
+    to,
     subject,
     html,
-  }: NotifyAdminArgs): Promise<void> {
+  }: SendEmailArgs): Promise<void> {
     const apiKey = getEnv('RESEND_API_KEY');
-    const to = getEnv('ADMIN_NOTIFY_EMAIL');
     const from = getEnv('NOTIFY_FROM_EMAIL');
   
-    if (!apiKey || !to || !from) {
+    if (!apiKey || !from) {
       console.warn(
-        '[admin-notify] Skipping admin notification because RESEND_API_KEY, ADMIN_NOTIFY_EMAIL, or NOTIFY_FROM_EMAIL is missing.'
+        '[admin-notify] Skipping email because RESEND_API_KEY or NOTIFY_FROM_EMAIL is missing.'
       );
       return;
     }
@@ -43,8 +49,28 @@ type NotifyAdminArgs = {
         console.error('[admin-notify] Resend error:', response.status, body);
       }
     } catch (error) {
-      console.error('[admin-notify] Failed to send admin email:', error);
+      console.error('[admin-notify] Failed to send email:', error);
     }
+  }
+  
+  export async function notifyAdminByEmail({
+    subject,
+    html,
+  }: NotifyAdminArgs): Promise<void> {
+    const to = getEnv('ADMIN_NOTIFY_EMAIL');
+  
+    if (!to) {
+      console.warn(
+        '[admin-notify] Skipping admin notification because ADMIN_NOTIFY_EMAIL is missing.'
+      );
+      return;
+    }
+  
+    await sendEmail({
+      to,
+      subject,
+      html,
+    });
   }
   
   export async function notifyAdminUserRegistered(args: {
@@ -83,6 +109,53 @@ type NotifyAdminArgs = {
         <p><strong>Pet name:</strong> ${escapeHtml(petName)}</p>
         <p><strong>Breed:</strong> ${escapeHtml(breed)}</p>
         <p><strong>Age:</strong> ${escapeHtml(age)}</p>
+      `,
+    });
+  }
+  
+  export async function notifyAdminBookingCreated(args: {
+    ownerName: string;
+    ownerEmail: string;
+    petName: string;
+    startDate: string;
+    endDate: string;
+    notes?: string;
+  }): Promise<void> {
+    const { ownerName, ownerEmail, petName, startDate, endDate, notes } = args;
+  
+    await notifyAdminByEmail({
+      subject: 'New booking request in Happy Tails',
+      html: `
+        <h2>New booking request</h2>
+        <p><strong>Owner:</strong> ${escapeHtml(ownerName)}</p>
+        <p><strong>Owner email:</strong> ${escapeHtml(ownerEmail)}</p>
+        <p><strong>Pet:</strong> ${escapeHtml(petName)}</p>
+        <p><strong>Start date:</strong> ${escapeHtml(startDate)}</p>
+        <p><strong>End date:</strong> ${escapeHtml(endDate)}</p>
+        <p><strong>Notes:</strong> ${escapeHtml(notes || '-')}</p>
+      `,
+    });
+  }
+  
+  export async function notifyCustomerBookingCreated(args: {
+    customerEmail: string;
+    customerName: string;
+    petName: string;
+    startDate: string;
+    endDate: string;
+  }): Promise<void> {
+    const { customerEmail, customerName, petName, startDate, endDate } = args;
+  
+    await sendEmail({
+      to: customerEmail,
+      subject: 'Your Happy Tails booking request has been received 🐾',
+      html: `
+        <h2>Booking request received</h2>
+        <p>Hi ${escapeHtml(customerName)},</p>
+        <p>We’ve received your booking request for <strong>${escapeHtml(petName)}</strong>.</p>
+        <p><strong>Dates:</strong> ${escapeHtml(startDate)} to ${escapeHtml(endDate)}</p>
+        <p>We’ll review it shortly and confirm availability as soon as possible.</p>
+        <p>Thank you for choosing Happy Tails Auckland ❤️</p>
       `,
     });
   }
