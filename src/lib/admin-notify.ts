@@ -4,11 +4,6 @@ type SendEmailArgs = {
     html: string;
   };
   
-  type NotifyAdminArgs = {
-    subject: string;
-    html: string;
-  };
-  
   function getEnv(name: string): string | undefined {
     const value = process.env[name];
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
@@ -56,7 +51,10 @@ type SendEmailArgs = {
   export async function notifyAdminByEmail({
     subject,
     html,
-  }: NotifyAdminArgs): Promise<void> {
+  }: {
+    subject: string;
+    html: string;
+  }): Promise<void> {
     const to = getEnv('ADMIN_NOTIFY_EMAIL');
   
     if (!to) {
@@ -137,25 +135,49 @@ type SendEmailArgs = {
     });
   }
   
-  export async function notifyCustomerBookingCreated(args: {
-    customerEmail: string;
+  export async function notifyAdminMessageReceived(args: {
     customerName: string;
+    customerEmail: string;
     petName: string;
-    startDate: string;
-    endDate: string;
+    bookingId: string;
+    messageText: string;
   }): Promise<void> {
-    const { customerEmail, customerName, petName, startDate, endDate } = args;
+    const { customerName, customerEmail, petName, bookingId, messageText } = args;
+  
+    await notifyAdminByEmail({
+      subject: 'New customer message in Happy Tails',
+      html: `
+        <h2>New customer message</h2>
+        <p><strong>Customer:</strong> ${escapeHtml(customerName)}</p>
+        <p><strong>Customer email:</strong> ${escapeHtml(customerEmail)}</p>
+        <p><strong>Pet:</strong> ${escapeHtml(petName)}</p>
+        <p><strong>Booking ID:</strong> ${escapeHtml(bookingId)}</p>
+        <p><strong>Message:</strong></p>
+        <div style="white-space: pre-wrap;">${escapeHtml(messageText)}</div>
+      `,
+    });
+  }
+  
+  export async function notifyCustomerMessageReply(args: {
+    customerName: string;
+    customerEmail: string;
+    petName: string;
+    bookingId: string;
+    messageText: string;
+  }): Promise<void> {
+    const { customerName, customerEmail, petName, bookingId, messageText } = args;
   
     await sendEmail({
       to: customerEmail,
-      subject: 'Your Happy Tails booking request has been received 🐾',
+      subject: 'Happy Tails replied to your message 🐾',
       html: `
-        <h2>Booking request received</h2>
+        <h2>You have a new message from Happy Tails</h2>
         <p>Hi ${escapeHtml(customerName)},</p>
-        <p>We’ve received your booking request for <strong>${escapeHtml(petName)}</strong>.</p>
-        <p><strong>Dates:</strong> ${escapeHtml(startDate)} to ${escapeHtml(endDate)}</p>
-        <p>We’ll review it shortly and confirm availability as soon as possible.</p>
-        <p>Thank you for choosing Happy Tails Auckland ❤️</p>
+        <p>We replied to your booking conversation for <strong>${escapeHtml(petName)}</strong>.</p>
+        <p><strong>Booking ID:</strong> ${escapeHtml(bookingId)}</p>
+        <p><strong>Message:</strong></p>
+        <div style="white-space: pre-wrap;">${escapeHtml(messageText)}</div>
+        <p>Open your Happy Tails account to continue the conversation.</p>
       `,
     });
   }

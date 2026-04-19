@@ -1,8 +1,9 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { requireAdmin, AuthenticatedRequest } from '../lib/auth';
 import { writeAuditLog } from '../lib/audit';
+import { notifyCustomerMessageReply } from '../lib/admin-notify';
 
 export const adminMessagesRouter = Router();
 
@@ -11,7 +12,7 @@ const messageSchema = z.object({
   text: z.string().min(1)
 });
 
-adminMessagesRouter.post('/', requireAdmin, async (req: AuthenticatedRequest, res) => {
+adminMessagesRouter.post('/', requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
   const parsed = messageSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -47,6 +48,31 @@ adminMessagesRouter.post('/', requireAdmin, async (req: AuthenticatedRequest, re
     entityId: message.id,
     details: `Admin sent message on booking ${booking.id}`,
   });
+
+  try {
+    const [owner, pet] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: booking.ownerId },
+        select: { fullName: true, email: true },
+      }),
+      prisma.pet.findUnique({
+        where: { id: booking.petId },
+        select: { name: true },
+      }),
+    ]);
+
+    if (owner && pet) {
+      await notifyCustomerMessageReply({
+        customerName: owner.fullName,
+        customerEmail: owner.email,
+        petName: pet.name,
+        bookingId: booking.id,
+        messageText: parsed.data.text,
+      });
+    }
+  } catch (error) {
+    console.error('[admin-messages] Failed to send customer reply email:', error);
+  }
 
   res.json({ success: true, data: message });
 });

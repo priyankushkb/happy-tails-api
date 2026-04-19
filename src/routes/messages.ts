@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { requireAuth, AuthenticatedRequest } from '../lib/auth';
 import { writeAuditLog } from '../lib/audit';
 import { getParamString } from '../lib/params';
+import { notifyAdminMessageReceived } from '../lib/admin-notify';
 
 export const messagesRouter = Router();
 
@@ -76,6 +77,31 @@ messagesRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
     entityId: message.id,
     details: `Customer sent message on booking ${booking.id}`,
   });
+
+  try {
+    const [owner, pet] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: booking.ownerId },
+        select: { fullName: true, email: true },
+      }),
+      prisma.pet.findUnique({
+        where: { id: booking.petId },
+        select: { name: true },
+      }),
+    ]);
+
+    if (owner && pet) {
+      await notifyAdminMessageReceived({
+        customerName: owner.fullName,
+        customerEmail: owner.email,
+        petName: pet.name,
+        bookingId: booking.id,
+        messageText: parsed.data.text,
+      });
+    }
+  } catch (error) {
+    console.error('[messages] Failed to send admin message notification:', error);
+  }
 
   res.json({ success: true, data: message });
 });
