@@ -182,6 +182,29 @@ type SendEmailArgs = {
     });
   }
   
+  export async function notifyCustomerBookingCreated(args: {
+    customerEmail: string;
+    customerName: string;
+    petName: string;
+    startDate: string;
+    endDate: string;
+  }): Promise<void> {
+    const { customerEmail, customerName, petName, startDate, endDate } = args;
+  
+    await sendEmail({
+      to: customerEmail,
+      subject: 'Your Happy Tails booking request has been received 🐾',
+      html: `
+        <h2>Booking request received</h2>
+        <p>Hi ${escapeHtml(customerName)},</p>
+        <p>We’ve received your booking request for <strong>${escapeHtml(petName)}</strong>.</p>
+        <p><strong>Dates:</strong> ${escapeHtml(startDate)} to ${escapeHtml(endDate)}</p>
+        <p>We’ll review it shortly and confirm availability as soon as possible.</p>
+        <p>Thank you for choosing Happy Tails Auckland ❤️</p>
+      `,
+    });
+  }
+  
   function escapeHtml(value: string): string {
     return value
       .replace(/&/g, '&amp;')
