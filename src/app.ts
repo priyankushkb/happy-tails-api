@@ -13,6 +13,7 @@ import { requestLogger } from './lib/request-logger';
 import { generalApiRateLimiter } from './lib/rate-limit';
 import { corsOptions } from './lib/cors';
 import { errorHandler } from './lib/error-handler';
+import { guestBookingsRouter } from './routes/guest-bookings';
 
 export const app = express();
 
@@ -26,6 +27,8 @@ app.use('/api', generalApiRateLimiter);
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, data: { status: 'ok' } });
 });
+
+app.use('/api/guest-bookings', guestBookingsRouter);
 
 app.use('/api/auth', authRouter);
 app.use('/api/pets', petsRouter);
